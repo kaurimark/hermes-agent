@@ -47,8 +47,8 @@ const SETTINGS_VIEWS: readonly SettingsViewId[] = [
   'keys',
   'notifications',
   'sessions',
-  'about',
-  'billing'
+  'billing',
+  'about'
 ]
 
 export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: SettingsPageProps) {
@@ -209,19 +209,19 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
       onSelect: () => setActiveView('sessions')
     },
     {
+      active: activeView === 'billing',
+      icon: BarChart3,
+      id: 'billing',
+      label: t.settings.nav.billing,
+      onSelect: () => setActiveView('billing')
+    },
+    {
       active: activeView === 'about',
       gapBefore: true,
       icon: Info,
       id: 'about',
       label: t.settings.nav.about,
       onSelect: () => setActiveView('about')
-    },
-    {
-      active: activeView === 'billing',
-      icon: BarChart3,
-      id: 'billing',
-      label: t.settings.nav.billing,
-      onSelect: () => setActiveView('billing')
     }
   ]
 
