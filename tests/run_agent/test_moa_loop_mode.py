@@ -631,6 +631,124 @@ def test_moa_facade_emits_reference_then_aggregating(monkeypatch, tmp_path):
     assert agg_events[0][1]["ref_count"] == 2
 
 
+def test_moa_facade_periodic_fanout_refreshes_only_on_configured_tool_batch(monkeypatch, tmp_path):
+    """Periodic fan-out advises at turn start, then only on the Nth tool batch."""
+    home = tmp_path / ".hermes"
+    home.mkdir()
+    (home / "config.yaml").write_text(
+        """
+moa:
+  default_preset: review
+  presets:
+    review:
+      fanout: every_n_tool_batches
+      fanout_every_n_tool_batches: 7
+      reference_models:
+        - provider: openai-codex
+          model: gpt-5.5
+      aggregator:
+        provider: openrouter
+        model: anthropic/claude-opus-4.8
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HERMES_HOME", str(home))
+    ref_runs = []
+
+    def fake_call_llm(**kwargs):
+        if kwargs["task"] == "moa_reference":
+            ref_runs.append(kwargs["messages"])
+            return _response("advice")
+        return _response("acted")
+
+    monkeypatch.setattr("agent.moa_loop.call_llm", fake_call_llm)
+    from agent.moa_loop import MoAChatCompletions
+
+    facade = MoAChatCompletions("review")
+    messages = [{"role": "user", "content": "do the thing"}]
+    facade.create(messages=messages, tools=[])
+    for step in range(1, 8):
+        call_id = f"c{step}"
+        messages = messages + [
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{"id": call_id, "function": {"name": "f", "arguments": "{}"}}],
+            },
+            {"role": "tool", "tool_call_id": call_id, "content": f"result {step}"},
+        ]
+        facade.create(messages=messages, tools=[])
+
+    # Initial advice + one refresh after the seventh completed tool batch.
+    assert len(ref_runs) == 2
+    latest_refresh = "\n".join(message["content"] for message in ref_runs[-1])
+    assert "result 7" in latest_refresh
+
+
+def test_moa_periodic_fanout_counts_parallel_tool_results_as_one_batch(monkeypatch, tmp_path):
+    home = tmp_path / ".hermes"
+    home.mkdir()
+    (home / "config.yaml").write_text(
+        """
+moa:
+  default_preset: review
+  presets:
+    review:
+      fanout: every_n_tool_batches
+      fanout_every_n_tool_batches: 2
+      reference_models:
+        - provider: openai-codex
+          model: gpt-5.5
+      aggregator:
+        provider: openrouter
+        model: anthropic/claude-opus-4.8
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HERMES_HOME", str(home))
+    ref_runs = []
+
+    def fake_call_llm(**kwargs):
+        if kwargs["task"] == "moa_reference":
+            ref_runs.append(kwargs["messages"])
+            return _response("advice")
+        return _response("acted")
+
+    monkeypatch.setattr("agent.moa_loop.call_llm", fake_call_llm)
+    from agent.moa_loop import MoAChatCompletions
+
+    facade = MoAChatCompletions("review")
+    initial = [{"role": "user", "content": "do the thing"}]
+    facade.create(messages=initial, tools=[])
+    first_batch = initial + [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {"id": "a", "function": {"name": "first", "arguments": "{}"}},
+                {"id": "b", "function": {"name": "second", "arguments": "{}"}},
+            ],
+        },
+        {"role": "tool", "tool_call_id": "a", "content": "first result"},
+        {"role": "tool", "tool_call_id": "b", "content": "second result"},
+    ]
+    facade.create(messages=first_batch, tools=[])
+    second_batch = first_batch + [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"id": "c", "function": {"name": "third", "arguments": "{}"}}],
+        },
+        {"role": "tool", "tool_call_id": "c", "content": "third result"},
+    ]
+    facade.create(messages=second_batch, tools=[])
+
+    # Initial run + refresh after the second action batch, not the second tool
+    # result in the first parallel batch.
+    assert len(ref_runs) == 2
+    assert "third result" in "\n".join(message["content"] for message in ref_runs[-1])
+
+
 def test_moa_facade_reruns_references_on_new_tool_result(monkeypatch, tmp_path):
     """References re-run when a new tool result advances the task state.
 

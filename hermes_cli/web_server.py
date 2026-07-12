@@ -978,6 +978,8 @@ class MoaPresetPayload(BaseModel):
     reference_temperature: Optional[float] = None
     aggregator_temperature: Optional[float] = None
     max_tokens: int = 4096
+    fanout: str = "per_iteration"
+    fanout_every_n_tool_batches: int = 7
     enabled: bool = True
 
 
@@ -992,6 +994,8 @@ class MoaConfigPayload(BaseModel):
     reference_temperature: Optional[float] = None
     aggregator_temperature: Optional[float] = None
     max_tokens: int = 4096
+    fanout: str = "per_iteration"
+    fanout_every_n_tool_batches: int = 7
     enabled: bool = True
     profile: Optional[str] = None
 
@@ -5544,6 +5548,8 @@ def set_moa_models(body: MoaConfigPayload, profile: Optional[str] = None):
                             "reference_temperature": preset.reference_temperature,
                             "aggregator_temperature": preset.aggregator_temperature,
                             "max_tokens": preset.max_tokens,
+                            "fanout": preset.fanout,
+                            "fanout_every_n_tool_batches": preset.fanout_every_n_tool_batches,
                             "enabled": preset.enabled,
                         }
                         for name, preset in body.presets.items()
@@ -5556,6 +5562,8 @@ def set_moa_models(body: MoaConfigPayload, profile: Optional[str] = None):
                     "reference_temperature": body.reference_temperature,
                     "aggregator_temperature": body.aggregator_temperature,
                     "max_tokens": body.max_tokens,
+                    "fanout": body.fanout,
+                    "fanout_every_n_tool_batches": body.fanout_every_n_tool_batches,
                     "enabled": body.enabled,
                 }
             normalized = normalize_moa_config(raw)

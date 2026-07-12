@@ -70,7 +70,7 @@ def _coerce_int_or_none(value: Any) -> int | None:
 def _coerce_fanout(value: Any) -> str:
     """Normalize the fan-out cadence; unknown values fall back to default."""
     mode = str(value or "").strip().lower()
-    return mode if mode in {"per_iteration", "user_turn"} else "per_iteration"
+    return mode if mode in {"per_iteration", "user_turn", "every_n_tool_batches"} else "per_iteration"
 
 
 def _clean_slot(slot: Any) -> dict[str, str] | None:
@@ -101,6 +101,7 @@ def _default_preset() -> dict[str, Any]:
         "max_tokens": 4096,
         "reference_max_tokens": None,
         "fanout": "per_iteration",
+        "fanout_every_n_tool_batches": 7,
         "enabled": True,
     }
 
@@ -145,6 +146,9 @@ def _normalize_preset(raw: Any) -> dict[str, Any]:
         # aggregator gets their upfront plan-level advice, then acts alone
         # for the rest of the tool loop.
         "fanout": _coerce_fanout(raw.get("fanout")),
+        "fanout_every_n_tool_batches": _coerce_int(
+            raw.get("fanout_every_n_tool_batches"), 7
+        ),
     }
 
 
@@ -192,6 +196,7 @@ def normalize_moa_config(raw: Any) -> dict[str, Any]:
         "max_tokens": active["max_tokens"],
         "reference_max_tokens": active.get("reference_max_tokens"),
         "fanout": active.get("fanout", "per_iteration"),
+        "fanout_every_n_tool_batches": active.get("fanout_every_n_tool_batches", 7),
         "enabled": active["enabled"],
     }
 

@@ -848,13 +848,12 @@ class MoAChatCompletions:
         # the advisory view changes — i.e. every tool iteration, since the
         # view grows with each tool result. "user_turn": advisors run ONCE per
         # user turn; subsequent tool iterations reuse that turn's advice and
-        # the aggregator acts alone (the original MoA shape: synthesize at the
-        # start, then let the acting model work). Implemented by hashing only
-        # the prefix up to the LAST USER message so mid-turn growth doesn't
-        # change the signature — iteration 2+ becomes a cache HIT.
+        # the aggregator acts alone. "every_n_tool_batches" is the useful
+        # middle ground: advise initially, then refresh after each completed N
+        # completed tool-call batches.
         fanout_mode = str(preset.get("fanout") or "per_iteration").strip().lower()
         sig_messages = ref_messages
-        if fanout_mode == "user_turn":
+        if fanout_mode in {"user_turn", "every_n_tool_batches"}:
             # Find the last REAL user message. The advisory view appends a
             # synthetic user marker (_ADVISORY_INSTRUCTION) when it ends on an
             # assistant turn — i.e. on every tool iteration after the first —
@@ -871,6 +870,26 @@ class MoAChatCompletions:
             if last_user_idx is not None:
                 sig_messages = ref_messages[: last_user_idx + 1]
 
+        # In periodic mode the cache signature stays stable between refresh
+        # points, then advances on N, 2N, ... completed tool-call batches after
+        # the latest real user message. The reference call itself still gets
+        # the FULL current advisory view when a bucket advances.
+        periodic_bucket = None
+        if fanout_mode == "every_n_tool_batches":
+            try:
+                every_n = max(1, int(preset.get("fanout_every_n_tool_batches") or 7))
+            except (TypeError, ValueError):
+                every_n = 7
+            last_real_user_raw_idx = max(
+                (i for i, message in enumerate(messages) if message.get("role") == "user"),
+                default=-1,
+            )
+            tool_batches_since_user = sum(
+                1 for message in messages[last_real_user_raw_idx + 1:]
+                if message.get("role") == "assistant" and message.get("tool_calls")
+            )
+            periodic_bucket = tool_batches_since_user // every_n
+
         # Turn-scoped cache: only run + display references when the advisory
         # view changed (i.e. a new user turn). Within one turn the agent loop
         # calls create() once per tool iteration; in user_turn mode the
@@ -881,7 +900,12 @@ class MoAChatCompletions:
                 f"{m.get('role')}:{m.get('content')}" for m in sig_messages
             ).encode("utf-8", "replace")
         ).hexdigest()
-        _cache_key = (self.preset_name, _sig, tuple(_slot_label(s) for s in reference_models))
+        _cache_key = (
+            self.preset_name,
+            _sig,
+            tuple(_slot_label(s) for s in reference_models),
+            periodic_bucket,
+        )
         _refs_from_cache = _cache_key == self._ref_cache_key and bool(self._ref_cache_outputs)
 
         if _refs_from_cache:

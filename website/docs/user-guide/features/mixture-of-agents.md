@@ -132,6 +132,31 @@ moa:
 
 Leave it unset (or `0`/blank) to keep the prior uncapped behavior.
 
+### Tuning advisor cadence with `fanout`
+
+`fanout` controls when references are re-run during a tool loop:
+
+- `per_iteration` (default): after every completed tool iteration. Best for
+  coding/debugging where the task state changes rapidly; slowest.
+- `user_turn`: once at the beginning of each user turn. The sane default for
+  normal reasoning and ordinary operational work.
+- `every_n_tool_batches`: once at the beginning of the turn, then after every
+  N completed tool-call batches. This is the middle ground for long tool loops that
+  occasionally need a fresh external view.
+
+```yaml
+moa:
+  presets:
+    general:
+      fanout: every_n_tool_batches
+      fanout_every_n_tool_batches: 7
+```
+
+The count is completed tool-call batches after the latest user message. Parallel
+tool calls in one acting-model response count as one batch. A turn with six
+batches gets only the initial advisory pass; the seventh refreshes it
+with the full current tool state.
+
 ## Terminal preset management
 
 ```bash

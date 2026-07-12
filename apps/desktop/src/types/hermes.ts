@@ -866,6 +866,8 @@ export interface MoaConfigResponse {
       aggregator: MoaModelSlot
       aggregator_temperature: number
       enabled: boolean
+      fanout: string
+      fanout_every_n_tool_batches: number
       max_tokens: number
       reference_models: MoaModelSlot[]
       reference_temperature: number
@@ -874,6 +876,8 @@ export interface MoaConfigResponse {
   aggregator: MoaModelSlot
   aggregator_temperature: number
   enabled: boolean
+  fanout: string
+  fanout_every_n_tool_batches: number
   max_tokens: number
   reference_models: MoaModelSlot[]
   reference_temperature: number

@@ -802,6 +802,8 @@ class TestWebServerEndpoints:
             "reference_temperature": 0.6,
             "aggregator_temperature": 0.4,
             "max_tokens": 4096,
+            "fanout": "every_n_tool_batches",
+            "fanout_every_n_tool_batches": 7,
             "enabled": True,
         }
 
@@ -811,6 +813,29 @@ class TestWebServerEndpoints:
         cfg = load_config()
         assert cfg["moa"]["reference_models"] == payload["reference_models"]
         assert cfg["moa"]["aggregator"] == payload["aggregator"]
+        assert cfg["moa"]["fanout"] == "every_n_tool_batches"
+        assert cfg["moa"]["fanout_every_n_tool_batches"] == 7
+
+    def test_put_named_moa_preset_preserves_periodic_fanout(self):
+        from hermes_cli.config import load_config
+
+        payload = {
+            "default_preset": "general",
+            "presets": {
+                "general": {
+                    "reference_models": [{"provider": "openai-codex", "model": "gpt-5.5"}],
+                    "aggregator": {"provider": "openrouter", "model": "anthropic/claude-opus-4.8"},
+                    "fanout": "every_n_tool_batches",
+                    "fanout_every_n_tool_batches": 7,
+                }
+            },
+        }
+
+        resp = self.client.put("/api/model/moa", json=payload)
+        assert resp.status_code == 200
+        preset = load_config()["moa"]["presets"]["general"]
+        assert preset["fanout"] == "every_n_tool_batches"
+        assert preset["fanout_every_n_tool_batches"] == 7
 
     # ── GET /api/media (remote image display) ───────────────────────────
 

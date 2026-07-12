@@ -281,3 +281,16 @@ def test_reference_max_tokens_in_flattened_view():
     active preset's reference_max_tokens."""
     cfg = normalize_moa_config(_preset(reference_max_tokens=750))
     assert cfg["reference_max_tokens"] == 750
+
+
+def test_periodic_fanout_config_is_normalized_and_exposed():
+    cfg = normalize_moa_config(
+        _preset(
+            fanout="every_n_tool_batches",
+            fanout_every_n_tool_batches="7",
+        )
+    )
+    preset = cfg["presets"]["p"]
+    assert preset["fanout"] == "every_n_tool_batches"
+    assert preset["fanout_every_n_tool_batches"] == 7
+    assert cfg["fanout_every_n_tool_batches"] == 7
